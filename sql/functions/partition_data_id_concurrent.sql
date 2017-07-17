@@ -3,7 +3,6 @@ CREATE FUNCTION partman.partition_data_id_concurrent(p_parent_table text
         , p_partition_id bigint
         , p_batch_count int DEFAULT 1
         , p_batch_interval bigint DEFAULT NULL
-        , p_lock_wait numeric DEFAULT 0
         , p_analyze boolean DEFAULT true) 
     RETURNS bigint
     LANGUAGE plpgsql SECURITY DEFINER
@@ -88,33 +87,6 @@ FOR i IN 1..p_batch_count LOOP
         v_max_partition_id := v_min_partition_id + v_partition_interval;
     ELSE
         v_max_partition_id := v_start_control + p_batch_interval;
-    END IF;
-
-    -- do some locking with timeout, if required
-    IF p_lock_wait > 0  THEN
-        v_lock_iter := 0;
-        WHILE v_lock_iter <= 5 LOOP
-            v_lock_iter := v_lock_iter + 1;
-            BEGIN
-                v_sql := format('SELECT * FROM ONLY %I.%I WHERE %I >= %s AND %I < %s FOR UPDATE NOWAIT'
-                                , v_parent_schema
-                                , v_parent_tablename
-                                , v_control
-                                , v_min_partition_id
-                                , v_control
-                                , v_max_partition_id);
-                EXECUTE v_sql;
-                v_lock_obtained := TRUE;
-            EXCEPTION
-                WHEN lock_not_available THEN
-                    PERFORM pg_sleep( p_lock_wait / 5.0 );
-                    CONTINUE;
-            END;
-            EXIT WHEN v_lock_obtained;
-        END LOOP;
-        IF NOT v_lock_obtained THEN
-           RETURN -1;
-        END IF;
     END IF;
 
     PERFORM partman.create_partition_id(p_parent_table, v_partition_id, p_analyze);

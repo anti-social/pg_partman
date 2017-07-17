@@ -61,14 +61,13 @@ def partition_data(conn, partman_schema):
     sql = "SELECT " + partman_schema + ".partition_data_" + args.type + "_concurrent(%s, %s"
     if args.interval != "":
         sql += ", p_batch_interval := %s"
-    sql += ", p_lock_wait := %s"
     sql += ", p_analyze := FALSE)"
 
     while True:
         if args.interval != "":
-            li = [args.parent, args.partition, args.interval, args.lockwait]
+            li = [args.parent, args.partition, args.interval]
         else:
-            li = [args.parent, args.partition, args.lockwait]
+            li = [args.parent, args.partition]
         if args.debug:
             print(cur.mogrify(sql, li))
         cur.execute(sql, li)
@@ -114,11 +113,14 @@ if __name__ == "__main__":
         print("-p/--parent option is required")
         sys.exit(2)
 
+    if args.partition == None:
+        print("-P/--partition option is required")
+        sys.exit(2)
+
     if args.type == None:
         print("-t/--type option is required")
         sys.exit(2)
 
-    is_autovac_off = False
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     conn = create_conn()
